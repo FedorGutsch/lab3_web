@@ -3,63 +3,63 @@ version: "3.9"
 services:
   db:
     image: postgres:16-alpine
-    container_name: social_db
+    container_name: sn-db
     environment:
-      POSTGRES_USER: social_user
-      POSTGRES_PASSWORD: social_pass_2024
-      POSTGRES_DB: social_network
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: socialdb
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U social_user -d social_network"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: social_pgadmin
+    image: dpage/pgadmin4:8
+    container_name: sn-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@social.com
-      PGADMIN_DEFAULT_PASSWORD: admin1234
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5051:80"
+      - "5050:80"
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
 
-  api:
-    build:
-      context: ./mini-services/api
-      dockerfile: Dockerfile
-    container_name: social_api
+  backend:
+    build: ./backend
+    container_name: sn-backend
     environment:
-      DATABASE_URL: postgresql://social_user:social_pass_2024@db:5432/social_network
-      SECRET_KEY: social-secret-key-change-in-production
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/socialdb
+      SECRET_KEY: super-secret-key-change-in-prod
     ports:
       - "8000:8000"
+    volumes:
+      - uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
-    restart: unless-stopped
+    restart: on-failure
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: social_frontend
+      context: ./frontend
+      args:
+        REACT_APP_API_URL: http://localhost:8000/api
+    container_name: sn-frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      REACT_APP_API_URL: http://localhost:8000/api
+      PORT: 3000
     ports:
-      - "3001:3000"
+      - "3000:3000"
     depends_on:
-      - api
-    restart: unless-stopped
+      - backend
+    restart: on-failure
 
 volumes:
   pgdata:
-  pgadmin_data:
+  uploads:
